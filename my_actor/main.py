@@ -24,13 +24,13 @@ async def main():
 
             proxy_info = await proxy_configuration.new_proxy_info()
 
-            context = await browser.new_context(
-                proxy={
-                    "server": proxy_info["url"],
-                    "username": proxy_info["username"],
-                    "password": proxy_info["password"],
-                }
-            )
+            proxy_settings = {"server": proxy_info.url}
+            if proxy_info.username:
+                proxy_settings["username"] = proxy_info.username
+            if proxy_info.password:
+                proxy_settings["password"] = proxy_info.password
+
+            context = await browser.new_context(proxy=proxy_settings)
 
             page = await context.new_page()
 
