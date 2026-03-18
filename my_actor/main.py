@@ -8,10 +8,10 @@ from playwright.async_api import async_playwright
 
 START_URLS = [
     "https://www.handyverkauf.net/addons/livesearch.php?q=iphone",
-    "https://www.handyverkauf.net/addons/livesearch.php?q=Samsung",
-    "https://www.handyverkauf.net/addons/livesearch.php?q=google",
-    "https://www.handyverkauf.net/addons/livesearch.php?q=Xiaomi",
-    "https://www.handyverkauf.net/addons/livesearch.php?q=Huawei",
+   # "https://www.handyverkauf.net/addons/livesearch.php?q=Samsung",
+   # "https://www.handyverkauf.net/addons/livesearch.php?q=google",
+   # "https://www.handyverkauf.net/addons/livesearch.php?q=Xiaomi",
+   # "https://www.handyverkauf.net/addons/livesearch.php?q=Huawei",
 ]
 
 
@@ -51,7 +51,7 @@ async def main():
                     ).all()
 
                 hrefs = []
-                for el in product_links:
+                for el in product_links[:5]:
                     href = await el.get_attribute("href")
                     if href:
                         hrefs.append(urljoin("https://www.handyverkauf.net", href))
