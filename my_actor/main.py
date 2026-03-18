@@ -27,7 +27,7 @@ async def main():
     async with Actor:
         proxy_configuration = await Actor.create_proxy_configuration(
             groups=['RESIDENTIAL'],
-            country_code="DE"
+            country_code='FR'
         )
 
         async with async_playwright() as p:
