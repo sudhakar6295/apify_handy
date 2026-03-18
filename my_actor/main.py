@@ -23,6 +23,15 @@ START_URLS = [
 ]
 
 
+user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+extra_http_headers = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+    "upgrade-insecure-requests": "1",
+    "referer": "https://www.handyverkauf.net/",
+    "cache-control": "max-age=0",
+}
+
 async def main():
     async with Actor:
         proxy_configuration = await Actor.create_proxy_configuration(
@@ -33,22 +42,27 @@ async def main():
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
 
-            proxy_info = await proxy_configuration.new_proxy_info()
-
-            proxy_settings = {"server": proxy_info.url}
-            if proxy_info.username:
-                proxy_settings["username"] = proxy_info.username
-            if proxy_info.password:
-                proxy_settings["password"] = proxy_info.password
-
-            context = await browser.new_context(proxy=proxy_settings)
-
-            page = await context.new_page()
-
-            # =========================
-            # STEP 1: SEARCH PAGES
-            # =========================
             for url in START_URLS:
+                # Get fresh proxy info for each request
+                proxy_info = await proxy_configuration.new_proxy_info()
+                proxy_settings = {"server": proxy_info.url}
+                if proxy_info.username:
+                    proxy_settings["username"] = proxy_info.username
+                if proxy_info.password:
+                    proxy_settings["password"] = proxy_info.password
+                
+                # Create new context with fresh proxy
+                context = await browser.new_context(proxy=proxy_settings,
+                                                    user_agent=user_agent,
+                                                    extra_http_headers=extra_http_headers,
+                                                    locale="de-DE",
+                                                    is_mobile=True,
+                                                    has_touch=True,
+                                                    device_scale_factor=3,
+                                                    viewport={"width": 390, "height": 844},
+                                                    )
+                page = await context.new_page()
+                
                 await human_wait(2.0, 5.0)
                 response = await page.goto(url, timeout=60000)
                 await page.wait_for_load_state("domcontentloaded")
@@ -77,19 +91,26 @@ async def main():
                 # =========================
                 # STEP 2: PRODUCT PAGE
                 # =========================
+
                 for product_url in hrefs:
+
+                    proxy_info = await proxy_configuration.new_proxy_info()
+                    proxy_settings = {"server": proxy_info.url}
+                    if proxy_info.username:
+                        proxy_settings["username"] = proxy_info.username
+                    if proxy_info.password:
+                        proxy_settings["password"] = proxy_info.password
+
+                    # New context for each product
+                    product_context = await browser.new_context(proxy=proxy_settings)
+                    product_page = await product_context.new_page()
+
                     await human_wait(2.0, 5.0)
-                    await page.goto(url, timeout=60000)
-                    await page.wait_for_load_state("domcontentloaded")
-                    await human_wait(1.0, 2.5)
+                    await product_page.goto(product_url, timeout=60000)  # Use product_url, not url
+                    await product_page.wait_for_load_state("domcontentloaded")
 
-                    device_name = await page.locator(
-                        '//*[@class="handy_name"]'
-                    ).text_content()
-
-                    variant = await page.locator(
-                        '//*[@class="handy_variation"]'
-                    ).text_content()
+                    device_name = await product_page.locator('//*[@class="handy_name"]').text_content()
+                    variant = await product_page.locator('//*[@class="handy_variation"]').text_content()
 
                     data_mk = await page.locator('//input').get_attribute("data-mk")
                     product_id = product_url.split("_")[-1]
@@ -123,7 +144,7 @@ async def main():
 
                         api_url = f"https://www.handyverkauf.net/addons/pausgabe_neu.php?id={product_id}&w=1&z={condition_class}&s=0&mode=handy&mk={data_mk}"
 
-                        api_page = await context.new_page()
+                        api_page = await product_context.new_page()
                         await api_page.goto(api_url)
 
                         json_text = await api_page.text_content("body")
@@ -203,5 +224,7 @@ async def main():
                             await Actor.push_data(item)
 
                         await api_page.close()
+                        await product_page.close()
+                        await product_context.close()
 
             await browser.close()
