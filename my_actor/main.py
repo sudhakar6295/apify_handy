@@ -1,10 +1,18 @@
 import re
 import json
 from urllib.parse import urljoin
-
+import os
 from apify import Actor
 from playwright.async_api import async_playwright
 
+import asyncio
+import random
+
+MIN_WAIT = 1.2
+MAX_WAIT = 3.8
+
+async def human_wait(min_s=MIN_WAIT, max_s=MAX_WAIT):
+    await asyncio.sleep(random.uniform(min_s, max_s))
 
 START_URLS = [
     "https://www.handyverkauf.net/addons/livesearch.php?q=iphone",
@@ -17,7 +25,10 @@ START_URLS = [
 
 async def main():
     async with Actor:
-        proxy_configuration = await Actor.create_proxy_configuration()
+        proxy_configuration = await Actor.create_proxy_configuration(
+            groups=['RESIDENTIAL'],
+            country_code="DE"
+        )
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -38,8 +49,15 @@ async def main():
             # STEP 1: SEARCH PAGES
             # =========================
             for url in START_URLS:
-                await page.goto(url, timeout=60000)
+                await human_wait(2.0, 5.0)
+                response = await page.goto(url, timeout=60000)
                 await page.wait_for_load_state("domcontentloaded")
+                await human_wait(1.0, 2.5)
+
+                if response:
+                    Actor.log.info(f"SEARCH response: {response.status} {response.url}")
+                else:
+                    Actor.log.warning(f"SEARCH response is None for {url}")
 
                 if "samsung" in url.lower():
                     product_links = await page.locator(
@@ -60,8 +78,10 @@ async def main():
                 # STEP 2: PRODUCT PAGE
                 # =========================
                 for product_url in hrefs:
-                    await page.goto(product_url)
+                    await human_wait(2.0, 5.0)
+                    await page.goto(url, timeout=60000)
                     await page.wait_for_load_state("domcontentloaded")
+                    await human_wait(1.0, 2.5)
 
                     device_name = await page.locator(
                         '//*[@class="handy_name"]'
